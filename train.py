@@ -10,6 +10,12 @@ from models.detector import compute_loss
 from models.memory import AnomalyDetector
 
 
+def multicam_collate_fn(batch):
+    if isinstance(batch[0], list):
+        return list(zip(*batch))
+    return torch.stack(batch)
+
+
 def set_seed(seed=42):
     random.seed(seed)
     torch.manual_seed(seed)
@@ -40,13 +46,14 @@ def train(
     )
 
     # DataLoader 输出: list[cam] (每个cam: [B, C, T, H, W])
+    num_workers = 0 if os.name == 'nt' else min(4, os.cpu_count() or 1)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=min(4, os.cpu_count() or 1),
+        num_workers=num_workers,
         drop_last=True,
-        collate_fn=lambda batch: list(zip(*batch)) if isinstance(batch[0], list) else torch.stack(batch),
+        collate_fn=multicam_collate_fn,
     )
 
     model = AnomalyDetector(num_cameras=num_cameras).to(device)

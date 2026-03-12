@@ -9,6 +9,12 @@ from datasets.video_dataset import VideoClipDataset
 from models.memory import AnomalyDetector
 
 
+def multicam_collate_fn(batch):
+    if isinstance(batch[0], list):
+        return list(zip(*batch))
+    return torch.stack(batch)
+
+
 def evaluate(
     data_root="data/ShanghaiTech",
     checkpoint="checkpoints/anomaly_detector.pth",
@@ -29,13 +35,14 @@ def evaluate(
         num_cameras=num_cameras,
     )
 
+    num_workers = 0 if os.name == 'nt' else min(4, os.cpu_count() or 1)
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=min(4, os.cpu_count() or 1),
+        num_workers=num_workers,
         drop_last=False,
-        collate_fn=lambda batch: list(zip(*batch)) if isinstance(batch[0], list) else torch.stack(batch),
+        collate_fn=multicam_collate_fn,
     )
 
     model = AnomalyDetector(num_cameras=num_cameras).to(device)
