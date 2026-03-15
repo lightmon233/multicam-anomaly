@@ -1,5 +1,6 @@
-"""数据加载"""
+"""Data loading for CHAD dataset"""
 import os
+import pickle
 import random
 
 import cv2
@@ -8,37 +9,10 @@ import torch
 from torch.utils.data import Dataset
 
 
-def extract_frames(video_path, clip_len=16, stride=8):
-    """将视频切为固定长度片段"""
-    cap = cv2.VideoCapture(video_path)
-    frames = []
-    clips = []
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frame = cv2.resize(frame, (224, 224))
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frames.append(frame)
-        if len(frames) >= clip_len:
-            clips.append(np.array(frames[:clip_len]))
-            frames = frames[stride:]  # 滑动窗口
-    cap.release()
-    return clips  # shape: (N, T, H, W, C)
+class CHADVideoClipDataset(Dataset):
+    """CHAD dataset for multi-camera anomaly detection"""
 
-
-def align_brightness(frame1, frame2):
-    """简单亮度对齐，消除摄像头曝光差异"""
-    lab1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2Lab).astype(float)
-    lab2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2Lab).astype(float)
-    lab1[:, :, 0] = lab1[:, :, 0] * (lab2[:, :, 0].mean() / (lab1[:, :, 0].mean() + 1e-5))
-    return cv2.cvtColor(np.clip(lab1, 0, 255).astype(np.uint8), cv2.COLOR_Lab2BGR)
-
-
-class VideoClipDataset(Dataset):
-    """上海科技视频异常检测训练/测试数据集"""
-
-    def __init__(self, root_dir, split="training", clip_len=16, stride=8, num_cameras=1, transform=None):
+    def __init__(self, root_dir, split="train_split_1", clip_len=16, stride=8, num_cameras=4, transform=None):
         self.root_dir = root_dir
         self.split = split
         self.clip_len = clip_len
@@ -46,18 +20,42 @@ class VideoClipDataset(Dataset):
         self.num_cameras = num_cameras
         self.transform = transform
 
-        videos_dir = os.path.join(root_dir, split, "videos")
-        if not os.path.isdir(videos_dir):
-            raise FileNotFoundError(f"找不到视频路径: {videos_dir}")
+        # Paths
+        self.videos_dir = os.path.join(root_dir, "CHAD_Videos")
+        self.meta_dir = os.path.join(root_dir, "CHAD_Meta")
+        self.annotations_dir = os.path.join(self.meta_dir, "annotations")
+        self.labels_dir = os.path.join(self.meta_dir, "anomaly_labels")
+        self.splits_dir = os.path.join(self.meta_dir, "splits")
 
-        self.video_files = sorted(
-            [os.path.join(videos_dir, f) for f in os.listdir(videos_dir) if f.endswith(".avi")]
-        )
-        if len(self.video_files) == 0:
-            raise RuntimeError(f"在 {videos_dir} 中没有找到视频文件")
+        # Load split
+        split_file = os.path.join(self.splits_dir, f"{split}.txt")
+        if not os.path.exists(split_file):
+            raise FileNotFoundError(f"Split file not found: {split_file}")
 
-        self.clip_index = []  # [(video_path, start_frame), ...]
-        for vpath in self.video_files:
+        with open(split_file, 'r') as f:
+            self.video_names = [line.strip() for line in f.readlines()]
+
+        # Group by video number (remove camera and anomaly flag)
+        self.video_groups = {}
+        for name in self.video_names:
+            # name format: cam_video_anomaly.mp4, but without extension in splits?
+            # Assuming splits contain names without .mp4
+            if name.endswith('.mp4'):
+                name = name[:-4]
+            parts = name.split('_')
+            video_num = parts[1]
+            if video_num not in self.video_groups:
+                self.video_groups[video_num] = []
+            self.video_groups[video_num].append(name)
+
+        # For each video group, create clips
+        self.clip_index = []  # [(video_num, start_frame), ...]
+        for video_num, names in self.video_groups.items():
+            # Assume all cameras have same frame count, use first one
+            first_name = names[0] + '.mp4'
+            vpath = os.path.join(self.videos_dir, first_name)
+            if not os.path.exists(vpath):
+                continue
             cap = cv2.VideoCapture(vpath)
             n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             cap.release()
@@ -65,15 +63,27 @@ class VideoClipDataset(Dataset):
                 continue
             n_clips = max(1, (n_frames - clip_len) // stride + 1)
             for i in range(n_clips):
-                self.clip_index.append((vpath, i * stride))
+                self.clip_index.append((video_num, i * stride))
 
         if len(self.clip_index) == 0:
-            raise RuntimeError("没有找到可用的视频片段，请检查 clip_len/stride 设置")
+            raise RuntimeError("No valid clips found")
 
     def __len__(self):
         return len(self.clip_index)
 
-    def _read_clip(self, vpath, start):
+    def _read_clip(self, video_num, camera, start):
+        name = f"{camera}_{video_num}_0.mp4"  # Assume normal for now, but need to check
+        # Actually, need to find the correct name
+        group = self.video_groups[video_num]
+        for n in group:
+            if n.startswith(f"{camera}_{video_num}"):
+                name = n + '.mp4'
+                break
+        vpath = os.path.join(self.videos_dir, name)
+        if not os.path.exists(vpath):
+            # Create blank clip if missing
+            return torch.zeros(3, self.clip_len, 224, 224)
+
         cap = cv2.VideoCapture(vpath)
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(start))
         frames = []
@@ -88,9 +98,8 @@ class VideoClipDataset(Dataset):
         cap.release()
 
         if len(frames) < self.clip_len:
-            # 重采样最后一帧填充
             while len(frames) < self.clip_len:
-                frames.append(frames[-1].copy())
+                frames.append(frames[-1].copy() if frames else np.zeros((224, 224, 3)))
 
         clip_np = np.stack(frames, axis=0)  # [T, H, W, C]
         clip = torch.from_numpy(clip_np).permute(3, 0, 1, 2)  # [C, T, H, W]
@@ -99,17 +108,10 @@ class VideoClipDataset(Dataset):
         return clip
 
     def __getitem__(self, idx):
-        if self.num_cameras == 1:
-            vpath, start = self.clip_index[idx % len(self.clip_index)]
-            return self._read_clip(vpath, start)
-
-        # 生成 num_cameras 个不同视频流输入
-        chosen = []
-        base_idx = idx
-        for c in range(self.num_cameras):
-            vi = (base_idx + c) % len(self.clip_index)
-            vpath, start = self.clip_index[vi]
-            chosen.append(self._read_clip(vpath, start))
-
-        # 形状 [num_cameras, C, T, H, W]
-        return chosen
+        video_num, start = self.clip_index[idx]
+        clips = []
+        for cam in range(1, self.num_cameras + 1):
+            clip = self._read_clip(video_num, cam, start)
+            clips.append(clip)
+        # Return list of clips [num_cameras, C, T, H, W]
+        return clips

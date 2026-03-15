@@ -3,3 +3,10 @@ venv/
 __pycache__/
 *.py[cod]
 /data/*
+checkpoints/
+*.pth
+scores_*.npy
+.DS_Store
+*.log
+.vscode/
+.idea/
