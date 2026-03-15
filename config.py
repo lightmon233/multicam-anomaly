@@ -20,3 +20,8 @@ IMG_SIZE = (224, 224)
 
 # Device
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+# Additional parameters for research compliance
+MEMORY_SIZE = 100  # Memory slots for normal patterns
+FEATURE_DIM = 512  # Feature dimension
+FUSION_TYPE = "attention"  # Fusion strategy: early, mid, late, attention

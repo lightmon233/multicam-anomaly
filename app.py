@@ -13,9 +13,9 @@ st.title("CHAD Multi-Camera Anomaly Detection")
 
 # Load model
 @st.cache_resource
-def load_model():
+def load_model(fusion_type="attention"):
     device = torch.device(DEVICE)
-    model = AnomalyDetector(num_cameras=NUM_CAMERAS).to(device)
+    model = AnomalyDetector(num_cameras=NUM_CAMERAS, feat_dim=FEATURE_DIM, mem_size=MEMORY_SIZE, fusion_type=fusion_type).to(device)
     checkpoint = "checkpoints/anomaly_detector.pth"
     if torch.cuda.is_available():
         model.load_state_dict(torch.load(checkpoint))
@@ -24,7 +24,11 @@ def load_model():
     model.eval()
     return model, device
 
-model, device = load_model()
+# Fusion type selection
+fusion_options = ["attention", "early", "late", "average"]
+selected_fusion = st.sidebar.selectbox("Select Fusion Type:", fusion_options, index=0)
+
+model, device = load_model(selected_fusion)
 
 # Select video
 st.header("Select Test Video")

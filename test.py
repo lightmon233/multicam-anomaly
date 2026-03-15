@@ -35,7 +35,7 @@ def evaluate(checkpoint="checkpoints/anomaly_detector.pth"):
         collate_fn=multicam_collate_fn,
     )
 
-    model = AnomalyDetector(num_cameras=NUM_CAMERAS).to(device)
+    model = AnomalyDetector(num_cameras=NUM_CAMERAS, feat_dim=FEATURE_DIM, mem_size=MEMORY_SIZE, fusion_type=FUSION_TYPE).to(device)
     if not os.path.isfile(checkpoint):
         raise FileNotFoundError(f"Model weights not found: {checkpoint}")
 

@@ -1,43 +1,111 @@
-# Multi-Camera Anomaly Detection with CHAD Dataset
+# 融合多源视频数据的异常行为检测方法研究与实现
 
-This project implements anomaly detection in multi-camera surveillance videos using the CHAD (Charlotte Anomaly Dataset).
+本科毕业设计项目 - 杨智 (19220119)
 
-## Features
+## 项目概述
 
-- Multi-camera video processing
-- Memory-based anomaly detection
-- Streamlit GUI for visualization
-- CHAD dataset support
+本项目实现融合多源视频数据的异常行为检测方法，突破单视角监控的局限性，为智能监控系统提供更加可靠和高效的技术支撑。项目采用CHAD (Charlotte Anomaly Dataset) 多摄像头数据集，实现了时空对齐、多源特征融合、记忆增强异常检测等核心技术。
 
-## Setup
+## 核心技术
 
-1. Install dependencies:
+### 1. 多源视频数据预处理与时空对齐
+- **时间同步策略**: 基于事件触发和光流匹配的时间对齐方法
+- **空间标定与几何对齐**: 基于特征点匹配的摄像头标定，单应性矩阵描述视角间投影关系
+- **图像质量评估与增强**: 亮度归一化、去模糊处理
+
+### 2. 多源特征提取与表达
+- **多源特征提取网络**: 多分支3D卷积神经网络，每个分支独立提取时空特征
+- **跨摄像头特征对齐**: 基于注意力机制的特征对齐模块
+- **多尺度时空特征融合**: 多尺度特征金字塔融合
+
+### 3. 基于深度学习的多源融合异常检测模型
+- **多源融合策略**: 支持注意力融合、早期融合、中期融合、晚期融合
+- **记忆增强正常模式建模**: 记忆模块存储正常行为原型特征
+- **时序建模与异常定位**: LSTM/Transformer捕捉时间依赖关系
+- **组合损失函数**: 重构损失、记忆紧凑性损失、分离性损失
+
+### 4. 系统实现与性能优化
+- **分布式处理架构**: 视频采集、特征提取、融合检测、结果展示解耦
+- **模型压缩与加速**: 知识蒸馏、模型剪枝、量化技术
+- **鲁棒性增强策略**: 摄像头故障处理、在线学习、自适应机制
+
+## 技术栈
+
+- **深度学习框架**: PyTorch
+- **视频处理**: OpenCV
+- **数据处理**: NumPy, Pandas
+- **可视化界面**: Streamlit
+- **模型压缩**: PyTorch Quantization
+
+## 安装与使用
+
+1. 安装依赖:
    ```bash
    pip install -r requirements.txt
    ```
 
-2. Download CHAD dataset and place in `data/CHAD_Videos/` and `data/CHAD_Meta/`
+2. 下载CHAD数据集放置在`data/CHAD_Videos/`和`data/CHAD_Meta/`
 
-3. Train the model:
+3. 训练模型:
    ```bash
    python train.py
    ```
 
-4. Test the model:
+4. 测试模型:
    ```bash
    python test.py
    ```
 
-5. Run the GUI:
+5. 评估性能:
+   ```bash
+   python evaluate.py
+   ```
+
+6. 启动可视化界面:
    ```bash
    streamlit run app.py
    ```
 
-## Project Structure
+## 评估指标
 
-- `config.py`: Configuration settings
-- `train.py`: Training script
-- `test.py`: Testing script
-- `app.py`: Streamlit GUI
-- `datasets/`: Data loading
-- `models/`: Model definitions
+- AUC (ROC曲线下面积)
+- 准确率、精确率、召回率、F1值
+- 误报率 (FAR)
+- 处理速度 (FPS)
+
+## 项目结构
+
+```
+├── config.py              # 配置参数
+├── train.py               # 训练脚本
+├── test.py                # 测试脚本
+├── evaluate.py            # 评估脚本
+├── app.py                 # Streamlit可视化界面
+├── datasets/
+│   └── video_dataset.py   # CHAD数据集加载器
+├── models/
+│   ├── encoder.py         # 多摄像头编码器和时空对齐
+│   └── memory.py          # 异常检测器和融合模块
+├── data/                  # 数据集目录
+├── checkpoints/           # 模型权重
+└── requirements.txt       # 依赖包
+```
+
+## 预期成果
+
+1. 完整的多源视频时空对齐方法和多源特征融合框架
+2. 融合记忆增强和时序建模的异常检测模型
+3. 多源视频异常检测系统原型
+4. 为智能监控系统提供更准确、更鲁棒的异常检测能力
+
+## 参考文献
+
+项目基于开题报告中列出的国内外研究现状，包括但不限于：
+- 多视角视频处理技术
+- 深度学习异常检测方法
+- 多源数据融合策略
+- 记忆增强网络等
+
+## 导师
+
+胡勇

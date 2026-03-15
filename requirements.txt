@@ -6,3 +6,4 @@ streamlit
 pillow
 matplotlib
 python-docx
+PyPDF2

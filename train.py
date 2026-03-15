@@ -45,7 +45,7 @@ def train():
         collate_fn=multicam_collate_fn,
     )
 
-    model = AnomalyDetector(num_cameras=NUM_CAMERAS).to(device)
+    model = AnomalyDetector(num_cameras=NUM_CAMERAS, feat_dim=FEATURE_DIM, mem_size=MEMORY_SIZE, fusion_type=FUSION_TYPE).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 
     for epoch in range(1, EPOCHS + 1):
